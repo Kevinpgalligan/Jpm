@@ -5,21 +5,48 @@
 ;;  4. Automatic closure generation.
 
 (defpackage :jpm
-  (:use :cl :esrap))
+  (:use :cl :esrap :alexandria))
 
 (in-package jpm)
 
-;;;; This is all garbage...
-(defrule jpm (+ (or whitespace statement)))
-(defrule whitespace (or #\Space #\Newline #\Tab
-                        #\Linefeed #\Return #\Backspace)
+(defclass jobj ()
+  (()
+   (content :initarg :jthing :accessor content)))
+
+(defrule jscript
+    (? (and sentence (* (and nl sentence))))
+  (:lambda (list)
+    (cons (first list)
+          (second list))))
+
+(defrule sentence
+    (? (or comment
+           (and (or whitespace
+                    subexpr
+                    string
+                    array
+                    primitive
+                    identifier)
+                sentence)))
+  (:function alexandria:flatten))
+
+(defrule commentless-sentence
+    (? (and (or whitespace
+                (and "(" commentless-sentence ")")
+                string
+                array
+                primitive
+                identifier)
+            commentless-sentence))
+  (:function alexandria:flatten))
+
+(defrule comment (and "NB." (* (not nl)))
   (:text t))
-(defrule statement (or assignment expression))
-(defrule assignment (and identifier
-                         (* whitespace)
-                         assignment-op
-                         (* whitespace)
-                         expression))
+
+(defrule whitespace (or #\Space #\Tab)
+  (:text t))
+(defrule nl (or #\Return #\Linefeed)
+  (:text t))
 
 #|
 "Names (used for pronouns and other surrogates, and assigned referents by the copula, as in prices=: 4.5 12) begin with a letter and may continue with letters, underlines, and digits."
@@ -53,13 +80,10 @@
   (:text t))
 
 ;; "A numeric list or vector is denoted by a list of numbers separated by spaces."
-(defrule vector
+(defrule array
     (and number
          (* (and (+ " ") number)))
-  (:lambda (list)
-    (cons (car list)
-          (loop for other in (cadr list)
-                collect (cadr other)))))
+  (:text t))
 
 #|
 "A primitive or primary may be denoted by a single graphic (such as + for plus) or by a graphic modified by one or more following inflections (a period or colon), as in +. and +: for or and nor. A primary may also be an inflected name, as in e. and o. for membership and pi times. A primary cannot be assigned a referent."
@@ -119,9 +143,8 @@ should come before PRIMITIVE because of "=".
 
 ;; TODO:
 ;; Start putting it all together. Starting out with a single line ("sentence").
-;;   - comments
-;;   - assignment
 ;;   - brackets
+;;   - assignment
 ;;   - control words (see "T-block" in notes)
 ;;     if. else. elseif. assert. 
 ;;     break. continue. for.
